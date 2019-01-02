@@ -188,10 +188,10 @@ void moveBody(struct Vector2D **vector2Ds, int size){
     }
 }
 //--------------------------------------------------------
-void moveSnake(struct Vector2D **snake, int size, struct Vector2D *dir){
-    moveBody(snake, size);
+void moveSnake(struct Snake *player){
+    moveBody(player->bodyparts, player->length);
     //move snake head
-    addVectors2D(snake[0], dir);
+    addVectors2D(player->bodyparts[0], &player->direction);
 }
 //-----------------------------------------------------
 void drawSnake(SDL_Renderer* renderer, struct Vector2D **snake, int snakeLength){
@@ -302,7 +302,7 @@ void mainloop(struct Snake *player, struct Vector2D *foodPosition){
         frameStart = SDL_GetTicks();
 
         // Move game objects
-        moveSnake(player->bodyparts, player->length, &player->direction);
+        moveSnake(player);
         // Handle game events
         Game.handleEvents(&player->direction);
         // Render background
