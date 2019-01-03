@@ -1,4 +1,3 @@
-//---------------------Definitions
 #define SDL_MAIN_HANDLED
 #define SCREEN_W 640
 #define SCREEN_H 480
@@ -7,13 +6,15 @@
 #define SNAKE_BODYPART_SIZE 10
 #define FOOD_SIZE 10
 #define FPS 40
-//---------------------Includes
+
 #include "SDL.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <conio.h>
 #include <time.h>
-//------------------------Declarations
+
+
 struct Vector2D;
 
 void gameInit(void);
@@ -25,7 +26,7 @@ void highscores();
 // Define game struct for game data
 static struct {
 
-	SDL_bool running;
+    SDL_bool running;
     struct {
 		unsigned int w;
 		unsigned int h;
@@ -38,6 +39,7 @@ static struct {
 	void (*init)(void);
 	void (*quit)(void);
 	void (*handleEvents) (struct Vector2D*);
+
 } Game = {
 	SDL_FALSE,
 	{
