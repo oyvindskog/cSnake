@@ -28,30 +28,30 @@ static struct {
 
     SDL_bool running;
     struct {
-		unsigned int w;
-		unsigned int h;
-		const char* name;
-		SDL_Window* window;
-		SDL_Renderer* renderer;
-	} screen;
+        unsigned int w;
+        unsigned int h;
+        const char* name;
+        SDL_Window* window;
+        SDL_Renderer* renderer;
+    } screen;
 
-	// define "methods"
-	void (*init)(void);
-	void (*quit)(void);
-	void (*handleEvents) (struct Vector2D*);
+    // define "methods"
+    void (*init)(void);
+    void (*quit)(void);
+    void (*handleEvents) (struct Vector2D*);
 
 } Game = {
-	SDL_FALSE,
-	{
-		SCREEN_SCALE*SCREEN_W,
-		SCREEN_SCALE*SCREEN_H,
-		SCREEN_NAME,
-		NULL,
-		NULL
-	},
-	gameInit,
-	gameQuit,
-	gameHandleEvents
+    SDL_FALSE,
+    {
+        SCREEN_SCALE*SCREEN_W,
+        SCREEN_SCALE*SCREEN_H,
+        SCREEN_NAME,
+        NULL,
+        NULL
+    },
+    gameInit,
+    gameQuit,
+    gameHandleEvents
 };
 
 struct Vector2D{
@@ -102,40 +102,40 @@ void gameHandleEvents(struct Vector2D *direction){
 
 //-----------------------------------------------------
 void gameInit(void) {
-	printf("game_init()n");
-	if(SDL_Init(SDL_INIT_EVERYTHING)!=0) {
-		printf("SDL error -> %sn", SDL_GetError());
-		exit(1);
-	}
+    printf("game_init()n");
+    if(SDL_Init(SDL_INIT_EVERYTHING)!=0) {
+        printf("SDL error -> %sn", SDL_GetError());
+        exit(1);
+    }
 
-	unsigned int w = Game.screen.w;
-	unsigned int h = Game.screen.h;
-	const char* name = Game.screen.name;
+    unsigned int w = Game.screen.w;
+    unsigned int h = Game.screen.h;
+    const char* name = Game.screen.name;
 
-	Game.screen.window = SDL_CreateWindow(
-		name,
-		SDL_WINDOWPOS_CENTERED,
-		SDL_WINDOWPOS_CENTERED,
-		w, h, 0
-	);
-	Game.screen.renderer = SDL_CreateRenderer(
-		Game.screen.window, -1,
-		SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC
-	);
+    Game.screen.window = SDL_CreateWindow(
+        name,
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        w, h, 0
+    );
+    Game.screen.renderer = SDL_CreateRenderer(
+        Game.screen.window, -1,
+        SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC
+    );
 
-	Game.running = SDL_TRUE;
+    Game.running = SDL_TRUE;
 }
 //---------------------------------------------------------
 void gameQuit(void) {
-	printf("game_quit()\n");
-	SDL_DestroyRenderer(Game.screen.renderer);
-	SDL_DestroyWindow(Game.screen.window);
+    printf("game_quit()\n");
+    SDL_DestroyRenderer(Game.screen.renderer);
+    SDL_DestroyWindow(Game.screen.window);
 
-	Game.screen.window = NULL;
-	Game.screen.renderer = NULL;
+    Game.screen.window = NULL;
+    Game.screen.renderer = NULL;
 
-	SDL_Quit();
-	Game.running = SDL_FALSE;
+    SDL_Quit();
+    Game.running = SDL_FALSE;
 }
 
 //--------------------------------------------------
@@ -309,31 +309,31 @@ void mainloop(struct Snake *player, struct Vector2D *foodPosition){
         Game.handleEvents(&player->direction);
         // Render background
         SDL_SetRenderDrawColor( Game.screen.renderer, 255, 0, 0, 255 );
-		SDL_RenderClear(Game.screen.renderer);
-		//Render snake
-		drawSnake(Game.screen.renderer, player->bodyparts, player->length);
+        SDL_RenderClear(Game.screen.renderer);
+        //Render snake
+        drawSnake(Game.screen.renderer, player->bodyparts, player->length);
         //Render food
         drawFood(Game.screen.renderer, foodPosition);
         drawWalls(Game.screen.renderer, walls, 4);
-		SDL_RenderPresent(Game.screen.renderer);
+        SDL_RenderPresent(Game.screen.renderer);
 
-		// Check collisions
-		if (checkSnakeCollisions(player->bodyparts, player->length)){
+        // Check collisions
+        if (checkSnakeCollisions(player->bodyparts, player->length)){
 
-		}
+        }
         if (checkFoodCollisions(player->bodyparts, foodPosition)){
             player->length += 5;
-		}
-		if (checkWallCollisions(player->bodyparts, walls, 4)){
+        }
+        if (checkWallCollisions(player->bodyparts, walls, 4)){
             printf("collishion with wall");
-		}
+        }
 
         frameTime = SDL_GetTicks() - frameStart; // how long did it all take
         if (frameDelay > frameTime){
             SDL_Delay(frameDelay - frameTime); //Delay as much as needed;
         }
         printf("%d",player->length);
-	}
+    }
 }
 
 int main()
@@ -374,7 +374,7 @@ int main()
 
     for (int i = 0; i < 100; ++i) free(player.bodyparts[i]);
     free(player.bodyparts);
-	Game.quit();
+    Game.quit();
 
     return 0;
 }
