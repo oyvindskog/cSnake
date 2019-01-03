@@ -67,7 +67,7 @@ struct Snake{
 };
 
 
-void (*gameloop)(struct Snake *player, struct Vector2D *foodPosition);
+void (*gameloop)(struct Snake *player, struct Vector2D *foodPosition, SDL_Rect *walls);
 
 //-----------------------------------------functions
 void gameHandleEvents(struct Vector2D *direction){
@@ -164,8 +164,9 @@ char *vector2DToString(struct Vector2D *v){
     snprintf( str, length + 1, "(%d,%d)", v->x, v->y );
     return str;
 }
+
 //--------------------------------------------------------
-// allocate memory for an array of Vector2Ders to Vector2Ds
+// allocate memory for an array of pointers Vector2Ds
 struct Vector2D** allocateVector2DArray(int size){
     struct Vector2D **tempVector2Ds;
     tempVector2Ds = malloc(size * sizeof *tempVector2Ds);
@@ -181,16 +182,39 @@ struct Vector2D** allocateVector2DArray(int size){
     }
     return tempVector2Ds;
 }
+
 //--------------------------------------------------------
-void moveBody(struct Vector2D **vector2Ds, int size){
+// allocate more memory for snake array of pointers Vector2Ds
+struct Vector2D** expandVector2DArray(struct Vector2D **snake, int size, int increment){
+
+    struct Vector2D** tmp;
+    int totalSize = increment + size;
+    tmp = realloc(snake, totalSize * sizeof *snake);
+    if (tmp == NULL) {
+        //TODO: handle failed realloc, temp_struct is unchanged
+        printf("Error reallocating mem");
+    } else {
+        for (int i = size; i < totalSize; ++i) { //
+            tmp[i] = malloc(sizeof *snake[i]);
+            initVector2D(tmp[i], -1, -1);
+        }
+    }
+
+    return tmp;
+}
+
+//--------------------------------------------------------
+void moveBody(struct Vector2D **bodyparts, int size){
+
     for (int i=size-1; i>0; i--){
-        vector2Ds[i]->x = vector2Ds[i-1]->x;
-        vector2Ds[i]->y = vector2Ds[i-1]->y;
-        printf(vector2DToString(vector2Ds[i]));
+        //printf("%d : %s--",i,vector2DToString(bodyparts[i]));
+        bodyparts[i]->x = bodyparts[i-1]->x;
+        bodyparts[i]->y = bodyparts[i-1]->y;
     }
 }
 //--------------------------------------------------------
 void moveSnake(struct Snake *player){
+
     moveBody(player->bodyparts, player->length);
     //move snake head
     addVectors2D(player->bodyparts[0], &player->direction);
@@ -239,12 +263,14 @@ SDL_Rect getSnakeRect(struct Vector2D **snake, int index){
 SDL_bool checkWallCollisions(struct Vector2D **snake, SDL_Rect *walls, int numberOfWalls){
 
     SDL_Rect head = getSnakeRect(snake, 0);
+
     for (int i=0; i<numberOfWalls; i++){
 
         if ( SDL_HasIntersection(&head, &walls[i]) ){
             return SDL_TRUE;
         }
     }
+
     return SDL_FALSE;
 }
 
@@ -276,7 +302,76 @@ SDL_bool checkFoodCollisions(struct Vector2D **snake, struct Vector2D *foodPosit
 }
 //------------------------------------------------------
 
-void mainloop(struct Snake *player, struct Vector2D *foodPosition){
+void mainloop(struct Snake *player, struct Vector2D *foodPosition, SDL_Rect *walls){
+
+    moveSnake(player);
+    Game.handleEvents(&player->direction);
+
+    SDL_SetRenderDrawColor( Game.screen.renderer, 255, 0, 0, 255 );
+    SDL_RenderClear(Game.screen.renderer);
+    drawSnake(Game.screen.renderer, player->bodyparts, player->length);
+    //Render food
+    drawFood(Game.screen.renderer, foodPosition);
+    drawWalls(Game.screen.renderer, walls, 4);
+    SDL_RenderPresent(Game.screen.renderer);
+
+    // Check collisions
+    if (checkSnakeCollisions(player->bodyparts, player->length)){
+
+    }
+    if (checkFoodCollisions(player->bodyparts, foodPosition)){
+
+        if (player->length + 5 > player->maxlength){
+            player->bodyparts = expandVector2DArray(player->bodyparts, player->length, 100);
+            player->maxlength += 100;
+        }
+        player->length += 5;
+        placeFood(foodPosition);
+    }
+    if (checkWallCollisions(player->bodyparts, walls, 4)){
+        printf("collishion with wall");
+    }
+
+}
+
+void placeFood(struct Vector2D *foodPosition){
+    int x = rand() % (SCREEN_W - (2 * FOOD_SIZE));
+    int y = rand() % (SCREEN_H - (2 * FOOD_SIZE));
+    printf("x=%d, y=%d",x,y);
+    initVector2D(foodPosition, x, y);
+}
+
+int main()
+{
+    // Initialize srand
+    srand(time(NULL));
+
+    // Set initial game state
+    gameloop = mainloop;
+
+    // Create player
+    struct Snake player;
+    player.length = 10;
+    player.maxlength = 100;
+
+    //Define starting direction
+    struct Vector2D direction;
+    initVector2D(&direction, 1, 0);
+    player.direction = direction;
+    player.bodyparts = allocateVector2DArray(player.maxlength);
+
+    //Define starting position
+    for (int i=0; i<player.length; i++){
+        initVector2D(player.bodyparts[i], 22 - i, 20);
+    }
+
+    //Define starting position for food
+    struct Vector2D foodPosition;
+    placeFood(&foodPosition);
+
+    // Initialize game
+    Game.init();
+
     //Define walls
     SDL_Rect walls[4];
     walls[0].x = 0;
@@ -296,82 +391,25 @@ void mainloop(struct Snake *player, struct Vector2D *foodPosition){
     walls[3].w = 10;
     walls[3].h = SCREEN_H - 20;
 
-     Uint32 frameStart;
+    Uint32 frameStart;
     int frameTime;
     int frameDelay = 1000 / FPS;
     // Game loop
     while(Game.running) {
+
         frameStart = SDL_GetTicks();
+        // run the loop that corresponds with game state
+        gameloop(&player, &foodPosition, walls);
 
-        // Move game objects
-        moveSnake(player);
-        // Handle game events
-        Game.handleEvents(&player->direction);
-        // Render background
-        SDL_SetRenderDrawColor( Game.screen.renderer, 255, 0, 0, 255 );
-        SDL_RenderClear(Game.screen.renderer);
-        //Render snake
-        drawSnake(Game.screen.renderer, player->bodyparts, player->length);
-        //Render food
-        drawFood(Game.screen.renderer, foodPosition);
-        drawWalls(Game.screen.renderer, walls, 4);
-        SDL_RenderPresent(Game.screen.renderer);
+        frameTime = SDL_GetTicks() - frameStart;
 
-        // Check collisions
-        if (checkSnakeCollisions(player->bodyparts, player->length)){
-
-        }
-        if (checkFoodCollisions(player->bodyparts, foodPosition)){
-            player->length += 5;
-        }
-        if (checkWallCollisions(player->bodyparts, walls, 4)){
-            printf("collishion with wall");
-        }
-
-        frameTime = SDL_GetTicks() - frameStart; // how long did it all take
         if (frameDelay > frameTime){
             SDL_Delay(frameDelay - frameTime); //Delay as much as needed;
         }
-        printf("%d",player->length);
-    }
-}
 
-int main()
-{
-
-    gameloop = mainloop;
-    // Frame counters/timers
-
-    struct Snake player;
-    player.length = 10;
-    player.maxlength = 100;
-
-    //Define starting direction
-    struct Vector2D direction;
-    initVector2D(&direction, 1, 0);
-    player.direction = direction;
-
-    player.bodyparts = allocateVector2DArray(100);
-
-    //Define starting position for food
-    struct Vector2D foodPosition;
-    srand(time(NULL));   // Initialization, should only be called once.
-    int x = rand() % (SCREEN_W - FOOD_SIZE);
-    int y = rand() % (SCREEN_H - FOOD_SIZE);
-    printf("x=%d, y=%d",x,y);
-    initVector2D(&foodPosition, x, y);
-
-
-    // Initialize game
-    Game.init();
-
-    //Define staring snake position
-    for (int i=0; i<player.length; i++){
-        initVector2D(player.bodyparts[i], 22 - i, 20);
     }
 
-    gameloop(&player, &foodPosition);
-
+    // Clean up on finish
     for (int i = 0; i < 100; ++i) free(player.bodyparts[i]);
     free(player.bodyparts);
     Game.quit();
