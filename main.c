@@ -2,7 +2,7 @@
 #define SCREEN_W 640
 #define SCREEN_H 480
 #define SCREEN_SCALE 1
-#define SCREEN_NAME "Prototype"
+#define SCREEN_NAME "Snake"
 #define SNAKE_BODYPART_SIZE 10
 #define FOOD_SIZE 10
 #define FPS 40
@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <conio.h>
 #include <time.h>
+#include <SDL_ttf.h>
 
 
 struct Vector2D;
@@ -21,18 +22,22 @@ void gameInit(void);
 void gameQuit(void);
 void gameHandleEvents(struct Vector2D*);
 void initVector2D(struct Vector2D *v, int x, int y);
-void highscores();
+void placeFood(struct Vector2D *foodPosition);
+void printText(char* txt, int x, int y);
 
 // Define game struct for game data
 static struct {
 
     SDL_bool running;
+    char* playerName;
+    int lengthOfName;
     struct {
         unsigned int w;
         unsigned int h;
         const char* name;
         SDL_Window* window;
         SDL_Renderer* renderer;
+
     } screen;
 
     // define "methods"
@@ -42,6 +47,8 @@ static struct {
 
 } Game = {
     SDL_FALSE,
+    NULL,
+    0,
     {
         SCREEN_SCALE*SCREEN_W,
         SCREEN_SCALE*SCREEN_H,
@@ -68,16 +75,25 @@ struct Snake{
 
 
 void (*gameloop)(struct Snake *player, struct Vector2D *foodPosition, SDL_Rect *walls);
+void initPlayer(struct Snake *player);
+void highscores(struct Snake *player, struct Vector2D *foodPosition, SDL_Rect *walls);
+
+Uint32 lastKeypress = 0;
+
+void quitOnSDL_QUIT(SDL_Event *event){
+    switch(event->type) {
+        case SDL_QUIT: {
+            Game.running = SDL_FALSE;
+        } break;
+    }
+}
 
 //-----------------------------------------functions
 void gameHandleEvents(struct Vector2D *direction){
     SDL_Event event;
     while(SDL_PollEvent(&event)) {
-        switch(event.type) {
-            case SDL_QUIT: {
-                Game.running = SDL_FALSE;
-            } break;
-        }
+
+        quitOnSDL_QUIT(&event);
 
         const Uint8* currentKeyStates = SDL_GetKeyboardState( NULL );
 
@@ -124,6 +140,8 @@ void gameInit(void) {
     );
 
     Game.running = SDL_TRUE;
+
+    Game.playerName = malloc( 20 * sizeof(char) );
 }
 //---------------------------------------------------------
 void gameQuit(void) {
@@ -136,6 +154,7 @@ void gameQuit(void) {
 
     SDL_Quit();
     Game.running = SDL_FALSE;
+    free(Game.playerName);
 }
 
 //--------------------------------------------------
@@ -263,7 +282,6 @@ SDL_Rect getSnakeRect(struct Vector2D **snake, int index){
 SDL_bool checkWallCollisions(struct Vector2D **snake, SDL_Rect *walls, int numberOfWalls){
 
     SDL_Rect head = getSnakeRect(snake, 0);
-
     for (int i=0; i<numberOfWalls; i++){
 
         if ( SDL_HasIntersection(&head, &walls[i]) ){
@@ -309,16 +327,19 @@ void mainloop(struct Snake *player, struct Vector2D *foodPosition, SDL_Rect *wal
 
     SDL_SetRenderDrawColor( Game.screen.renderer, 255, 0, 0, 255 );
     SDL_RenderClear(Game.screen.renderer);
+
     drawSnake(Game.screen.renderer, player->bodyparts, player->length);
-    //Render food
     drawFood(Game.screen.renderer, foodPosition);
     drawWalls(Game.screen.renderer, walls, 4);
+
+    //Render score
+    char* score = malloc(5 * sizeof(char));
+    sprintf(score, "%d", player->length);
+    printText(score, 0, 0 );
+    free(score);
     SDL_RenderPresent(Game.screen.renderer);
 
     // Check collisions
-    if (checkSnakeCollisions(player->bodyparts, player->length)){
-
-    }
     if (checkFoodCollisions(player->bodyparts, foodPosition)){
 
         if (player->length + 5 > player->maxlength){
@@ -328,17 +349,102 @@ void mainloop(struct Snake *player, struct Vector2D *foodPosition, SDL_Rect *wal
         player->length += 5;
         placeFood(foodPosition);
     }
-    if (checkWallCollisions(player->bodyparts, walls, 4)){
-        printf("collishion with wall");
+    if (checkWallCollisions(player->bodyparts, walls, 4) ||
+        checkSnakeCollisions(player->bodyparts, player->length)
+        ){
+       for (int i = 0; i < player->length; ++i) free(player->bodyparts[i]);
+       free(player->bodyparts);
+       initPlayer(player);
+       gameloop = highscores;
     }
 
 }
 
 void placeFood(struct Vector2D *foodPosition){
-    int x = rand() % (SCREEN_W - (2 * FOOD_SIZE));
-    int y = rand() % (SCREEN_H - (2 * FOOD_SIZE));
-    printf("x=%d, y=%d",x,y);
+    int x = (rand() % (SCREEN_W - (3 * FOOD_SIZE))) + FOOD_SIZE;
+    int y = (rand() % (SCREEN_H - (3 * FOOD_SIZE))) + FOOD_SIZE;
     initVector2D(foodPosition, x, y);
+}
+
+void initPlayer(struct Snake *player){
+    player->length = 10;
+    player->maxlength = 100;
+
+    //Define starting direction
+    struct Vector2D direction;
+    initVector2D(&direction, 1, 0);
+    player->direction = direction;
+    player->bodyparts = allocateVector2DArray(player->maxlength);
+
+    //Define starting position
+    for (int i=0; i<player->length; i++){
+        initVector2D(player->bodyparts[i], 22 - i, 20);
+    }
+}
+
+void printText(char* txt, int x, int y){
+    SDL_Color textColor = { 255, 255, 255, 0 };
+    int fontSize = 20;
+    TTF_Init();
+    TTF_Font * font = TTF_OpenFont("arial.ttf", fontSize);
+    SDL_Surface* textSurface = TTF_RenderText_Solid(font, txt, textColor);
+    SDL_Texture* text = SDL_CreateTextureFromSurface(Game.screen.renderer, textSurface);
+    int text_width = textSurface->w;
+    int text_height = textSurface->h;
+    SDL_FreeSurface(textSurface);
+    SDL_Rect renderQuad = { x, y, text_width, text_height };
+    SDL_RenderCopy(Game.screen.renderer, text, NULL, &renderQuad);
+
+    SDL_DestroyTexture(text);
+    TTF_CloseFont(font);
+
+}
+
+void getName(void){
+    const Uint8* currentKeyStates = SDL_GetKeyboardState( NULL );
+    int time = SDL_GetTicks() - lastKeypress;
+    for (int i=0; i<30; i++){
+        if( currentKeyStates[i]){
+            SDL_Keycode keyCode = SDL_GetKeyFromScancode(i);
+
+            if (Game.lengthOfName < 19 && time > 100){
+                lastKeypress = SDL_GetTicks();
+                Game.playerName[Game.lengthOfName] = (char) keyCode;
+                Game.playerName[Game.lengthOfName + 1] = '\0';
+                Game.lengthOfName++;
+            }
+        }
+    }
+    if (currentKeyStates[SDL_SCANCODE_RETURN]){
+        gameloop = mainloop;
+    }
+    if (currentKeyStates[SDL_SCANCODE_BACKSPACE] &&
+        Game.lengthOfName > 0 &&
+        time > 100
+        ){
+        Game.playerName[Game.lengthOfName] = '\0';
+        Game.lengthOfName--;
+        lastKeypress = SDL_GetTicks();
+    }
+}
+
+void highscores(struct Snake *player, struct Vector2D *foodPosition, SDL_Rect *walls){
+    SDL_Event event;
+    while(SDL_PollEvent(&event)) {
+        quitOnSDL_QUIT(&event);
+        getName();
+    }
+    SDL_SetRenderDrawColor( Game.screen.renderer, 255, 0, 0, 255 );
+    SDL_RenderClear(Game.screen.renderer);
+    drawSnake(Game.screen.renderer, player->bodyparts, player->length);
+    //Render food
+    drawFood(Game.screen.renderer, foodPosition);
+    drawWalls(Game.screen.renderer, walls, 4);
+    if (Game.lengthOfName > 0){
+        printText(Game.playerName, 20, 20);
+    }
+    SDL_RenderPresent(Game.screen.renderer);
+
 }
 
 int main()
@@ -351,19 +457,8 @@ int main()
 
     // Create player
     struct Snake player;
-    player.length = 10;
-    player.maxlength = 100;
+    initPlayer(&player);
 
-    //Define starting direction
-    struct Vector2D direction;
-    initVector2D(&direction, 1, 0);
-    player.direction = direction;
-    player.bodyparts = allocateVector2DArray(player.maxlength);
-
-    //Define starting position
-    for (int i=0; i<player.length; i++){
-        initVector2D(player.bodyparts[i], 22 - i, 20);
-    }
 
     //Define starting position for food
     struct Vector2D foodPosition;
@@ -410,7 +505,7 @@ int main()
     }
 
     // Clean up on finish
-    for (int i = 0; i < 100; ++i) free(player.bodyparts[i]);
+    for (int i = 0; i < player.length; ++i) free(player.bodyparts[i]);
     free(player.bodyparts);
     Game.quit();
 
