@@ -25,12 +25,17 @@ void initVector2D(struct Vector2D *v, int x, int y);
 void placeFood(struct Vector2D *foodPosition);
 void printText(char* txt, int x, int y);
 
+struct ScoreElement{
+    char *name;
+    int score;
+};
+
 // Define game struct for game data
 static struct {
-
     SDL_bool running;
     char* playerName;
     int lengthOfName;
+    struct ScoreElement** scores;
     struct {
         unsigned int w;
         unsigned int h;
@@ -49,6 +54,7 @@ static struct {
     SDL_FALSE,
     NULL,
     0,
+    NULL,
     {
         SCREEN_SCALE*SCREEN_W,
         SCREEN_SCALE*SCREEN_H,
@@ -428,6 +434,59 @@ void getName(void){
     }
 }
 
+/**
+ * Read scores in the form name,score; from file
+ */
+struct ScoreElement** readScores(){
+
+    int c;
+    FILE *file;
+    file = fopen( "scores.dat" , "r");
+    int scoreCnt = 0;
+    int letterCnt = 0;
+
+    // allocate memory
+    char *name = malloc(sizeof(char));
+    struct ScoreElement** temp = malloc(10 * sizeof(struct ScoreElement));
+
+    while ((c = getc(file)) != EOF){
+
+        //Allocate memory for one more char
+        name = (char*) realloc(name, (letterCnt+1) * sizeof(char) );
+        struct ScoreElement *scorePtr = malloc(sizeof(struct ScoreElement));
+
+        // read name
+        if (c != ',') {
+            name[letterCnt] = c;
+            letterCnt++;
+        }else {
+            // end name
+            name[letterCnt]= '\0';
+            scorePtr->name = name;
+            name = malloc(sizeof(char));
+
+            //read score
+            int sum = 0;
+            int cnt=0;
+            while ((c = getc(file)) != ';'){
+                sum *= 10;
+                sum += c - 48;
+                cnt++;
+            }
+
+            scorePtr->score = sum;
+            //printf("name = %s ,score = %d", scorePtr->name, scorePtr->score);
+            temp[scoreCnt] = scorePtr;
+            letterCnt = 0;
+            scoreCnt++;
+
+        }
+
+    }
+    fclose(file);
+    return temp;
+}
+
 void highscores(struct Snake *player, struct Vector2D *foodPosition, SDL_Rect *walls){
     SDL_Event event;
     while(SDL_PollEvent(&event)) {
@@ -444,7 +503,12 @@ void highscores(struct Snake *player, struct Vector2D *foodPosition, SDL_Rect *w
         printText(Game.playerName, 20, 20);
     }
     SDL_RenderPresent(Game.screen.renderer);
-
+    if (Game.scores == NULL){
+        Game.scores = readScores();
+        for (int i=0; i<10; i++){
+            printf("%s...........%d", Game.scores[i]->name, Game.scores[i]->score);
+        }
+    }
 }
 
 int main()
@@ -507,6 +571,14 @@ int main()
     // Clean up on finish
     for (int i = 0; i < player.length; ++i) free(player.bodyparts[i]);
     free(player.bodyparts);
+
+    if (Game.scores != NULL){
+        for(int i=0; i<10; i++) {
+            free(Game.scores[i]->name);
+            free(Game.scores[i]);
+        }
+        free(Game.scores);
+    }
     Game.quit();
 
     return 0;
