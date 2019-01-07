@@ -10,6 +10,7 @@
 #include "SDL.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <conio.h>
 #include <time.h>
@@ -148,6 +149,7 @@ void gameInit(void) {
     Game.running = SDL_TRUE;
 
     Game.playerName = malloc( 20 * sizeof(char) );
+    Game.playerName[0] = '\0';
 }
 //---------------------------------------------------------
 void gameQuit(void) {
@@ -373,7 +375,7 @@ void placeFood(struct Vector2D *foodPosition){
 }
 
 void initPlayer(struct Snake *player){
-    player->length = 10;
+    //player->length = 10;
     player->maxlength = 100;
 
     //Define starting direction
@@ -406,23 +408,51 @@ void printText(char* txt, int x, int y){
 
 }
 
-void getName(void){
+void sortScores(struct ScoreElement **array){
+    int last = 10;
+    while(last > 1){
+        for (int i=0; i<last-1; i++){
+            if (array[i]->score < array[i+1]->score){
+                struct ScoreElement *tmp = array[i+1];
+                array[i+1] = array[i];
+                array[i] = tmp;
+            }
+        }
+        last--;
+    }
+}
+
+void getName(struct Snake *player){
     const Uint8* currentKeyStates = SDL_GetKeyboardState( NULL );
     int time = SDL_GetTicks() - lastKeypress;
-    for (int i=0; i<30; i++){
-        if( currentKeyStates[i]){
-            SDL_Keycode keyCode = SDL_GetKeyFromScancode(i);
+    if (Game.scores[9]->score < player->length){
+        for (int i=0; i<30; i++){
+            if( currentKeyStates[i]){
+                SDL_Keycode keyCode = SDL_GetKeyFromScancode(i);
 
-            if (Game.lengthOfName < 19 && time > 100){
-                lastKeypress = SDL_GetTicks();
-                Game.playerName[Game.lengthOfName] = (char) keyCode;
-                Game.playerName[Game.lengthOfName + 1] = '\0';
-                Game.lengthOfName++;
+                if (Game.lengthOfName < 19 && time > 100){
+                    lastKeypress = SDL_GetTicks();
+                    Game.playerName[Game.lengthOfName] = (char) keyCode;
+                    Game.playerName[Game.lengthOfName + 1] = '\0';
+                    Game.lengthOfName++;
+                }
             }
         }
     }
     if (currentKeyStates[SDL_SCANCODE_RETURN]){
         gameloop = mainloop;
+        if (Game.scores[9]->score < player->length){
+            struct ScoreElement *temp = malloc(sizeof(struct ScoreElement));
+            char *name = malloc(Game.lengthOfName * sizeof(char));
+            strcpy(name, Game.playerName);
+            temp->score = player->length;
+            temp->name = name;
+            free(Game.scores[9]->name);
+            free(Game.scores[9]);
+            Game.scores[9] = temp;
+            sortScores(Game.scores);
+        }
+        player->length = 10;
     }
     if (currentKeyStates[SDL_SCANCODE_BACKSPACE] &&
         Game.lengthOfName > 0 &&
@@ -436,6 +466,7 @@ void getName(void){
 
 /**
  * Read scores in the form name,score; from file
+ * We are trusting the file a bit much here... no errorhandling
  */
 struct ScoreElement** readScores(){
 
@@ -457,8 +488,10 @@ struct ScoreElement** readScores(){
 
         // read name
         if (c != ',') {
-            name[letterCnt] = c;
-            letterCnt++;
+            if(c != '\n'){
+                name[letterCnt] = c;
+                letterCnt++;
+            }
         }else {
             // end name
             name[letterCnt]= '\0';
@@ -475,7 +508,6 @@ struct ScoreElement** readScores(){
             }
 
             scorePtr->score = sum;
-            //printf("name = %s ,score = %d", scorePtr->name, scorePtr->score);
             temp[scoreCnt] = scorePtr;
             letterCnt = 0;
             scoreCnt++;
@@ -488,10 +520,17 @@ struct ScoreElement** readScores(){
 }
 
 void highscores(struct Snake *player, struct Vector2D *foodPosition, SDL_Rect *walls){
+    // Fetch highscores if needed
+    if (Game.scores == NULL){
+        Game.scores = readScores();
+        for (int i=0; i<10; i++){
+            printf("%s...........%d", Game.scores[i]->name, Game.scores[i]->score);
+        }
+    }
     SDL_Event event;
     while(SDL_PollEvent(&event)) {
         quitOnSDL_QUIT(&event);
-        getName();
+        getName(player);
     }
     SDL_SetRenderDrawColor( Game.screen.renderer, 255, 0, 0, 255 );
     SDL_RenderClear(Game.screen.renderer);
@@ -502,13 +541,18 @@ void highscores(struct Snake *player, struct Vector2D *foodPosition, SDL_Rect *w
     if (Game.lengthOfName > 0){
         printText(Game.playerName, 20, 20);
     }
-    SDL_RenderPresent(Game.screen.renderer);
-    if (Game.scores == NULL){
-        Game.scores = readScores();
-        for (int i=0; i<10; i++){
-            printf("%s...........%d", Game.scores[i]->name, Game.scores[i]->score);
-        }
+    printText("Highscores:", 20, 40);
+    int height = 60;
+    for (int i=0; i<10; i++){
+        printText(Game.scores[i]->name, 20, height + (i*20));
+        //Render score
+        char* score = malloc(5 * sizeof(char));
+        sprintf(score, "%d", Game.scores[i]->score);
+        printText(score, 200, height + (i*20));
+        free(score);
     }
+    SDL_RenderPresent(Game.screen.renderer);
+
 }
 
 int main()
@@ -521,6 +565,7 @@ int main()
 
     // Create player
     struct Snake player;
+    player.length = 10;
     initPlayer(&player);
 
 
